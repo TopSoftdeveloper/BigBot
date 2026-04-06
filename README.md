@@ -1,5 +1,3 @@
 # BigBot
-# image url
-- https://mega.nz/folder/dE1WwZpQ#5MMmfhOwfcMxw0uRNL4Lmw
-- http://www.drivesnapshot.de/download/snapshot64.exe
-- https://drive.google.com/file/d/17kJXWSmJYTZZwjuypysWpBCbMFavdB93/view?usp=sharing
+# code + lib
+- https://drive.google.com/file/d/1e06CNe9N_BKxGoA8W4JIsHFfhKu3Lb_J/view?usp=sharing
