@@ -12,6 +12,6 @@ As for above 2 links, should save HTML pages.
 As for next 5 links, should downlad pdf files. Last 3 links are very important
 
 # Latest Code for casino
-- 
+- ./MerkurInject.zip
 
 
