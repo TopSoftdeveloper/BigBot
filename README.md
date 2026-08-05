@@ -7,7 +7,6 @@
 - Download 3 pdf files from this github repository.
 
 
-# Latest Code for casino
-- ./MerkurInject.zip
+
 
 
