@@ -1,0 +1,214 @@
+# Distributed Hashcat 7.1.1 — Manual setup for 6+ PCs
+
+For your Bitcoin `wallet.dat` password recovery, I recommend manual keyspace distribution using Hashcat's `--skip` and `--limit` options.
+
+This works with Windows and Linux computers, does not require a central server, and prevents PCs from testing the same passwords when the ranges are calculated correctly.
+
+## 1. How the cluster will work
+
+Controller PC
+
+Calculates and assigns non-overlapping ranges
+
+PC 1
+
+Unique range
+
+PC 2
+
+Unique range
+
+PC 3
+
+Unique range
+
+PC 4
+
+Unique range
+
+PC 5
+
+Unique range
+
+PC 6
+
+Unique range
+
+Each computer uses the same hash and attack configuration, but receives a different starting position and workload.
+
+### Requirements
+
+- Hashcat 7.1.1 on every PC, ideally the same version.
+- Working GPU drivers and Hashcat backends.
+- Your verified Bitcoin hash in `1.txt`.
+- A unique Hashcat session name for each PC.
+- A record of which ranges have finished.
+
+You do not need to distribute `wallet.dat`. Hashcat mode `11300` uses the extracted hash.
+
+For security, restrict the hash to machines you own or trust. Keep `wallet.dat` on your primary recovery machine.
+
+## 2. Verify the hardware
+
+On Windows:
+
+```
+.\hashcat.exe -I
+.\hashcat.exe -b -m 11300
+```
+
+On Linux:
+
+```
+./hashcat.bin -I
+./hashcat.bin -b -m 11300
+```
+
+Record each machine's benchmark in H/s. Your earlier result of approximately 978 H/s was from a very small search and may not represent sustained performance.
+
+## 3. Choose a fixed mask
+
+For example, for passwords containing lowercase letters, uppercase letters, digits, and symbols, with exactly six characters:
+
+```
+?a?a?a?a?a?a
+```
+
+All computers must use the identical mask. When distributing one search, avoid `--increment`: different password lengths should be treated as separate jobs.
+
+### Calculate Hashcat's keyspace
+
+Windows:
+
+```
+.\hashcat.exe -m 11300 -a 3 --keyspace '?a?a?a?a?a?a'
+```
+
+Linux:
+
+```
+./hashcat.bin -m 11300 -a 3 --keyspace '?a?a?a?a?a?a'
+```
+
+Important: Hashcat's `--keyspace` output is not necessarily the total number of password combinations. It reports a base-loop size specifically intended for splitting work with `--skip` and `--limit`. Use the returned value, rather than calculating `95^6` yourself.&#x20;
+
+[image](https://www.google.com/s2/favicons?domain=https://hashcat.net\&sz=32)
+
+Hashcat
+
+
+
+## 4. Divide the workload between six PCs
+
+Suppose `--keyspace` returns `600000`. This is an illustrative number, not the expected result for the six-character mask.
+
+For six equally powerful PCs, each gets 100,000 base-loop positions.
+
+| PC   | Skip    | Limit   | Range           |
+| ---- | ------- | ------- | --------------- |
+| PC 1 | 0       | 100,000 | 0–99,999        |
+| PC 2 | 100,000 | 100,000 | 100,000–199,999 |
+| PC 3 | 200,000 | 100,000 | 200,000–299,999 |
+| PC 4 | 300,000 | 100,000 | 300,000–399,999 |
+| PC 5 | 400,000 | 100,000 | 400,000–499,999 |
+| PC 6 | 500,000 | 100,000 | 500,000–599,999 |
+
+### Interactive range calculator
+
+Enter the actual value from `--keyspace` and your number of computers. This calculator divides the range without gaps or overlap.
+
+Hashcat keyspace
+
+Number of PCs
+
+Hashcat mask
+
+| PC   | Skip   | Limit  |   |
+| ---- | ------ | ------ | - |
+| PC 1 | 0      | 100000 |   |
+| PC 2 | 100000 | 100000 |   |
+| PC 3 | 200000 | 100000 |   |
+| PC 4 | 300000 | 100000 |   |
+| PC 5 | 400000 | 100000 |   |
+| PC 6 | 500000 | 100000 |   |
+
+&#x20;Copy all 6 commandsCommands are compatible with PowerShell and Bash. Run them in the Hashcat directory with `hashcat.exe` on Windows or `./hashcat.bin` on Linux as appropriate. Exact numeric coverage is guaranteed by the range calculation, assuming all machines use the same Hashcat keyspace configuration.
+
+This calculator splits the work equally. With different GPUs, proportional splitting is more efficient.
+
+## 5. Start Hashcat on each computer
+
+Using the hypothetical ranges above, the Windows commands would look like this.
+
+PC 1 (Windows):
+
+```
+.\hashcat.exe -m 11300 -a 3 --session=btc-pc1 --skip 0 --limit 100000 1.txt '?a?a?a?a?a?a'
+```
+
+PC 2 (Linux):
+
+```
+./hashcat.bin -m 11300 -a 3 --session=btc-pc2 --skip 100000 --limit 100000 1.txt '?a?a?a?a?a?a'
+```
+
+PC 3 (Windows):
+
+```
+.\hashcat.exe -m 11300 -a 3 --session=btc-pc3 --skip 200000 --limit 100000 1.txt '?a?a?a?a?a?a'
+```
+
+Continue assigning the remaining ranges to PCs 4, 5 and 6.
+
+Do not use these example ranges for your real search until you calculate its actual keyspace.
+
+## 6. Monitor progress
+
+While Hashcat is running, press `s` in its terminal to display status.
+
+Check these fields:
+
+```
+Status...........: Running
+Speed.#01........: 12500 H/s
+Recovered........: 0/1
+Progress.........: ...
+```
+
+The speed shown is only an example.
+
+Keep a simple record of each PC's session, `skip`, `limit`, status, and completed range. Do not assign an unfinished range to another PC unless you're deliberately restarting or redistributing it.
+
+On newer Hashcat versions, some combinations of range options and session restoration have limitations. Check restore support for your exact 7.1.1 build before relying on it for multi-day runs.&#x20;
+
+[image](https://www.google.com/s2/favicons?domain=https://github.com\&sz=32)
+
+GitHub
+
+
+
+## 7. How much faster is six-PC recovery?
+
+If every PC sustains the same performance, six PCs can approach six times the throughput of one PC.
+
+For different GPUs, their speeds add approximately:
+
+\\[ H\_{\text{total}}=H_1+H_2+\cdots+H_6 \\]
+
+However, even six fast computers may be insufficient for a long, completely unknown password containing letters, digits and symbols.
+
+For example, an eight-character password using 95 printable ASCII characters has:
+
+\\[ 95^8 = 6{,}634{,}204{,}312{,}890{,}625 \\]
+
+possible combinations. Exhaustive recovery could still be impractical.
+
+## What I need to configure your actual six-PC cluster
+
+Send me the GPU model for each computer and the result of:
+
+```
+.\hashcat.exe -m 11300 -a 3 --keyspace '?a?a?a?a?a?a'
+```
+
+I can then calculate six or more non-overlapping search ranges weighted by GPU performance, along with the exact Windows/Linux commands, rather than relying on equal divisions that may leave faster PCs idle.

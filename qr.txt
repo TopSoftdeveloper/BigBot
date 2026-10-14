@@ -1,0 +1,191 @@
+You can use PHP QR Code (PHPQRCode) in Laravel without Composer. Just copy the library into your Laravel project and create a controller to generate, preview, and download QR codes.
+
+This approach works with Laravel 10, 11, and 12, although the older PHPQRCode library may need compatibility fixes on modern PHP versions.
+
+## 1. Download and install the library
+
+Download: [PHP QR Code (SourceForge)](https://sourceforge.net/projects/phpqrcode/)
+
+Extract it to:
+
+```
+your-laravel-project/
+├── app/
+│   └── Http/
+│       └── Controllers/
+│           └── QRCodeController.php
+├── resources/
+│   └── views/
+│       └── qr.blade.php
+├── routes/
+│   └── web.php
+└── libraries/
+    └── phpqrcode/
+        ├── qrlib.php
+        ├── qrconst.php
+        ├── qrtools.php
+        └── ...
+```
+
+Copy the entire library, not just `qrlib.php`.
+
+## 2. Create Laravel controller
+
+Run:
+
+```
+php artisan make:controller QRCodeController
+```
+
+Then edit `app/Http/Controllers/QRCodeController.php`:
+
+```
+
+<?php
+
+namespace App\Http\Controllers;
+
+use Illuminate\Http\Request;
+
+class QRCodeController extends Controller
+{
+    public function index()
+    {
+        return view('qr');
+    }
+
+    public function generate(Request $request)
+    {
+        require_once base_path('libraries/phpqrcode/qrlib.php');
+
+        $data = $request->query('data', 'Hello Laravel');
+
+        if (!is_string($data) || strlen($data) > 2000) {
+            abort(422, 'Invalid or oversized QR data');
+        }
+
+        ob_start();
+
+        \QRcode::png(
+            $data,
+            false,
+            QR_ECLEVEL_L,
+            8,
+            4
+        );
+
+        $png = ob_get_clean();
+
+        if (!is_string($png) || !$png) {
+            abort(500, 'QR generation failed');
+        }
+
+        $headers = [
+            'Content-Type' => 'image/png',
+            'Cache-Control' => 'no-store',
+        ];
+
+        if ($request->boolean('download')) {
+            $headers['Content-Disposition'] =
+                'attachment; filename="qrcode.png"';
+        }
+
+        return response($png, 200, $headers);
+    }
+}
+
+```
+
+The controller uses the library directly, without adding a Composer dependency.
+
+## 3. Add Laravel routes
+
+Edit `routes/web.php`:
+
+```
+use App\Http\Controllers\QRCodeController;
+
+Route::get('/qr', [QRCodeController::class, 'index'])
+    ->name('qr.index');
+
+Route::get('/qr/generate', [QRCodeController::class, 'generate'])
+    ->name('qr.generate');
+```
+
+## 4. Create Blade view
+
+Create `resources/views/qr.blade.php`:
+
+```
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Laravel QR Generator</title>
+</head>
+<body>
+    <h2>QR Code Generator</h2>
+
+    <form method="GET" action="{{ route('qr.index') }}">
+        <textarea name="data" rows="5" cols="50"
+            maxlength="2000">{{ $data ?? request('data', 'Hello Laravel') }}</textarea>
+
+        <p>
+            <button type="submit">Generate QR</button>
+        </p>
+    </form>
+
+    @php
+        $text = request('data', 'Hello Laravel');
+        $params = ['data' => $text];
+    @endphp
+
+    <img
+        src="{{ route('qr.generate', $params) }}"
+        width="400"
+        alt="QR Code"
+    >
+
+    <p>
+        <a href="{{ route('qr.generate', array_merge(
+            $params,
+            ['download' => 1]
+        )) }}">
+            Download QR Code PNG
+        </a>
+    </p>
+</body>
+</html>
+
+```
+
+Now open:
+
+```
+http://localhost:8000/qr
+```
+
+You can enter text, generate a QR code, preview it, and download a PNG.
+
+## 5. Important: Version 40
+
+There is one limitation with this PHPQRCode approach:
+
+```
+\QRcode::png($data, false, QR_ECLEVEL_L, 8, 4);
+```
+
+The `8` is the pixel scale, not the QR version. PHPQRCode normally chooses the smallest version that fits.
+
+If you specifically need Version 40, with its full capacity of 2,953 binary bytes at error-correction level L, we must either adjust PHPQRCode's version-selection implementation or use a library that explicitly supports a fixed version.
+
+For your Laravel implementation, I would prefer the second option because it avoids modifying the internal QR encoding algorithm.
+
+Which one do you require?
+
+- A: Always Version 40 (177 × 177 modules), even with short text.
+- B: Automatically select Version 1–40 based on the data size.
+- C: Store the maximum possible information (up to approximately 2.9 KB) in one QR code.
+
+The choice determines whether the simple PHPQRCode integration is sufficient or whether we need a different implementation.
